@@ -5,7 +5,15 @@ from __future__ import annotations
 import tree_sitter_javascript
 from tree_sitter import Node
 
-from .extract import Builder, Pushed, Scope, make_parser, walk
+from .extract import (
+    UNKNOWN_RECEIVER,
+    Builder,
+    Pushed,
+    Scope,
+    make_parser,
+    simple_receiver,
+    walk,
+)
 from .model import REF_CALL, REF_TYPE, REF_VALUE, FileIndex
 
 _PARSER = None
@@ -166,10 +174,16 @@ class _JsHandler:
         if name_node is None or name_node.type != "identifier":
             return None
         name = b.text(name_node)
-        decl = node.parent if node.parent and node.parent.type in (
-            "lexical_declaration",
-            "variable_declaration",
-        ) else node
+        decl = (
+            node.parent
+            if node.parent
+            and node.parent.type
+            in (
+                "lexical_declaration",
+                "variable_declaration",
+            )
+            else node
+        )
         range_node = decl
         if decl.parent is not None and decl.parent.type == "export_statement":
             range_node = decl.parent
@@ -245,9 +259,9 @@ class _JsHandler:
         prop = node.child_by_field_name("property")
         if prop is None:
             return
-        receiver = None
+        receiver = UNKNOWN_RECEIVER
         if obj is not None and obj.type in ("identifier", "this", "super", "member_expression"):
-            receiver = "".join(b.text(obj).split())
+            receiver = simple_receiver(b.text(obj))
         b.add_ref(prop, owner, b.text(prop), kind, receiver)
 
     def _require(self, call: Node) -> str | None:

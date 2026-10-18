@@ -181,6 +181,17 @@ def walk(root: Node, scope: Scope, handler: NodeHandler) -> None:
                 stack.append(item)
 
 
+UNKNOWN_RECEIVER = "?"
+
+
+def simple_receiver(text: str) -> str:
+    """Keep a receiver only if it is a plain dotted name; anything else becomes '?'."""
+    compact = "".join(text.split())
+    if not compact or any(ch in compact for ch in "()[]{}\"'`<>+-*/,;"):
+        return UNKNOWN_RECEIVER
+    return compact
+
+
 def children_with(scope: Scope, nodes: Iterable[Node | None]) -> list[tuple[Node, Scope]]:
     return [(n, scope) for n in nodes if n is not None]
 

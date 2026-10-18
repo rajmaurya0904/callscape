@@ -5,7 +5,16 @@ from __future__ import annotations
 import tree_sitter_python
 from tree_sitter import Node
 
-from .extract import Builder, Scope, Pushed, dedent_first_line, make_parser, walk
+from .extract import (
+    UNKNOWN_RECEIVER,
+    Builder,
+    Pushed,
+    Scope,
+    dedent_first_line,
+    make_parser,
+    simple_receiver,
+    walk,
+)
 from .model import REF_CALL, REF_TYPE, REF_VALUE, FileIndex
 
 _PARSER = None
@@ -35,6 +44,13 @@ def _docstring(b: Builder, body: Node | None) -> str:
         if part.type == "string_content":
             return dedent_first_line(b.text(part))
     return ""
+
+
+def _with_decorators(node: Node) -> Node:
+    parent = node.parent
+    if parent is not None and parent.type == "decorated_definition":
+        return parent
+    return node
 
 
 class _PythonHandler:
@@ -68,7 +84,7 @@ class _PythonHandler:
         body = node.child_by_field_name("body")
         name = b.text(name_node)
         is_method = scope.kind == "class"
-        range_node = node.parent if node.parent and node.parent.type == "decorated_definition" else node
+        range_node = _with_decorators(node)
         sym = b.add_symbol(
             node,
             name,
@@ -94,7 +110,7 @@ class _PythonHandler:
         name_node = node.child_by_field_name("name")
         body = node.child_by_field_name("body")
         supers = node.child_by_field_name("superclasses")
-        range_node = node.parent if node.parent and node.parent.type == "decorated_definition" else node
+        range_node = _with_decorators(node)
         bases: list[str] = []
         if supers is not None:
             for arg in supers.named_children:
@@ -129,7 +145,9 @@ class _PythonHandler:
         b = self.b
         attr = node.child_by_field_name("attribute")
         obj = node.child_by_field_name("object")
-        receiver = _dotted(b, obj) if obj is not None and obj.type in ("identifier", "attribute") else None
+        receiver = UNKNOWN_RECEIVER
+        if obj is not None and obj.type in ("identifier", "attribute"):
+            receiver = simple_receiver(b.text(obj))
         if attr is not None:
             b.add_ref(attr, owner, b.text(attr), kind, receiver)
 

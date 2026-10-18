@@ -5,7 +5,15 @@ from __future__ import annotations
 import tree_sitter_go
 from tree_sitter import Node
 
-from .extract import Builder, Pushed, Scope, make_parser, walk
+from .extract import (
+    UNKNOWN_RECEIVER,
+    Builder,
+    Pushed,
+    Scope,
+    make_parser,
+    simple_receiver,
+    walk,
+)
 from .model import REF_CALL, REF_TYPE, REF_VALUE, FileIndex
 
 _PARSER = None
@@ -142,7 +150,10 @@ class _GoHandler:
         bases: list[str] = []
         if type_node is not None and type_node.type == "struct_type":
             kind = "struct"
-            for fld in type_node.named_children[0].named_children if type_node.named_children else []:
+            field_list = next(
+                (c for c in type_node.named_children if c.type == "field_declaration_list"), None
+            )
+            for fld in field_list.named_children if field_list is not None else []:
                 if fld.type == "field_declaration" and fld.child_by_field_name("name") is None:
                     base, pkg, _ = _base_type(b, fld.child_by_field_name("type"))
                     if base:
@@ -171,9 +182,9 @@ class _GoHandler:
         b = self.b
         operand = node.child_by_field_name("operand")
         field = node.child_by_field_name("field")
-        receiver = None
+        receiver = UNKNOWN_RECEIVER
         if operand is not None and operand.type in ("identifier", "selector_expression"):
-            receiver = "".join(b.text(operand).split())
+            receiver = simple_receiver(b.text(operand))
         if field is not None:
             b.add_ref(field, owner, b.text(field), kind, receiver)
 
