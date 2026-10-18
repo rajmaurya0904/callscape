@@ -50,7 +50,7 @@ def test_lookup_reports_every_match_for_an_ambiguous_name(graph: Graph) -> None:
 
 
 def test_lookup_normalises_windows_separators(graph: Graph) -> None:
-    assert ids(graph.lookup("pkg\core.py::make")) == {"pkg/core.py::make"}
+    assert ids(graph.lookup(r"pkg\core.py::make")) == {"pkg/core.py::make"}
 
 
 def test_reachable_respects_depth(graph: Graph) -> None:
