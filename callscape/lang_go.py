@@ -11,6 +11,7 @@ from .extract import (
     Pushed,
     Scope,
     make_parser,
+    same,
     simple_receiver,
     walk,
 )
@@ -101,7 +102,7 @@ class _GoHandler:
             node, b.text(name_node), "function", scope, signature=b.header(node, body)
         )
         inner = Scope(owner=sym.id, prefix=sym.qualname, kind="function")
-        return [(c, inner) for c in node.children if c != name_node]
+        return [(c, inner) for c in node.children if not same(c, name_node)]
 
     def method(self, node: Node, scope: Scope) -> Pushed:
         b = self.b
@@ -134,7 +135,8 @@ class _GoHandler:
             cls=recv_type or None,
             self_names=sym.self_names,
         )
-        return [(c, inner) for c in node.children if c != name_node and c != receiver]
+        skip = (name_node, receiver)
+        return [(c, inner) for c in node.children if not any(same(c, s) for s in skip)]
 
     def type_spec(self, node: Node, scope: Scope) -> Pushed:
         b = self.b
@@ -174,7 +176,7 @@ class _GoHandler:
             bases=bases,
         )
         inner = Scope(owner=sym.id, prefix=sym.qualname, kind="type", cls=sym.qualname)
-        return [(c, inner) for c in node.children if c != name_node]
+        return [(c, inner) for c in node.children if not same(c, name_node)]
 
     # -- references -----------------------------------------------------------------
 
@@ -210,7 +212,7 @@ class _GoHandler:
                     self.selector_ref(arg, scope.owner, REF_VALUE)
         pushed: list[tuple[Node, Scope]] = []
         for child in node.children:
-            if child == skip:
+            if same(child, skip):
                 if child.type == "selector_expression":
                     operand = child.child_by_field_name("operand")
                     if operand is not None and operand.type not in ("identifier",):

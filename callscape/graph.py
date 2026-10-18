@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, deque
 from dataclasses import dataclass, field
+from typing import Any
 
 from .model import REF_CALL, REF_TYPE, REF_VALUE, Symbol
 from .repo import Repo
@@ -218,7 +219,7 @@ class Graph:
     def fan_out(self, idx: int) -> int:
         return len({e.dst for e in self.out.get(idx, ()) if e.kind in CALL_KINDS})
 
-    def stats(self) -> dict[str, object]:
+    def stats(self) -> dict[str, Any]:
         symbols = self.repo.symbols
         real = [s for s in symbols if s.kind != "module"]
         by_kind = Counter(s.kind for s in real)

@@ -11,6 +11,7 @@ from .extract import (
     Pushed,
     Scope,
     make_parser,
+    same,
     simple_receiver,
     walk,
 )
@@ -109,7 +110,7 @@ class _JsHandler:
             owner=sym.id, prefix=sym.qualname, kind="function", cls=scope.cls, self_names=_SELF
         )
         name_node = node.child_by_field_name("name")
-        return [(c, inner) for c in fn.children if c != name_node]
+        return [(c, inner) for c in fn.children if not same(c, name_node)]
 
     # -- definitions ----------------------------------------------------------------
 
@@ -314,7 +315,7 @@ class _JsHandler:
                     self.member_ref(arg, scope.owner, REF_VALUE)
         pushed: list[tuple[Node, Scope]] = []
         for child in node.children:
-            if child == skip:
+            if same(child, skip):
                 if child.type == "member_expression":
                     obj = child.child_by_field_name("object")
                     if obj is not None and obj.type not in ("identifier", "this", "super"):

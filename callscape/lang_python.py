@@ -12,6 +12,7 @@ from .extract import (
     Scope,
     dedent_first_line,
     make_parser,
+    same,
     simple_receiver,
     walk,
 )
@@ -103,7 +104,7 @@ class _PythonHandler:
             cls=scope.cls,
             self_names=("self", "cls", "mcs"),
         )
-        return [(c, inner) for c in node.children if c != name_node]
+        return [(c, inner) for c in node.children if not same(c, name_node)]
 
     def klass(self, node: Node, scope: Scope) -> Pushed:
         b = self.b
@@ -171,7 +172,7 @@ class _PythonHandler:
                     self.attribute_ref(value, scope.owner, REF_VALUE)
         pushed: list[tuple[Node, Scope]] = []
         for child in node.children:
-            if child == fn and fn.type in ("identifier", "attribute"):
+            if same(child, fn) and fn.type in ("identifier", "attribute"):
                 if fn.type == "attribute":
                     obj = fn.child_by_field_name("object")
                     if obj is not None:

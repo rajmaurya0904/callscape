@@ -7,6 +7,7 @@ walk itself is iterative so very deep expression trees cannot blow the Python st
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 
@@ -42,6 +43,11 @@ class Builder:
         self.lang = lang
         self.data = data
         self._line_bytes = data.split(b"\n")
+        self._line_starts: list[int] = []
+        offset = 0
+        for chunk in self._line_bytes:
+            self._line_starts.append(offset)
+            offset += len(chunk) + 1
         text = data.decode("utf-8", errors="replace")
         self.lines = text.split("\n")
         self.index = FileIndex(path=path, lang=lang, lines=self.lines)
@@ -53,7 +59,20 @@ class Builder:
     def text(self, node: Node | None) -> str:
         if node is None:
             return ""
-        return node.text.decode("utf-8", errors="replace") if node.text else ""
+        return self.data[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
+
+    # Positions are derived from byte offsets: the Point objects returned by
+    # ``Node.start_point`` are not safe to read attributes from on every Python build.
+
+    def row_of(self, byte: int) -> int:
+        """0-based line number of a byte offset."""
+        return bisect_right(self._line_starts, byte) - 1
+
+    def start_row(self, node: Node) -> int:
+        return self.row_of(node.start_byte)
+
+    def end_row(self, node: Node) -> int:
+        return self.row_of(max(node.end_byte - 1, node.start_byte))
 
     def char_col(self, row: int, byte_col: int) -> int:
         """Convert a tree-sitter byte column into a character column."""
@@ -114,7 +133,7 @@ class Builder:
         sym_id = f"{self.path}::{qual}"
         if sym_id in self._ids:
             self._ids[sym_id] += 1
-            sym_id = f"{sym_id}#{span.start_point.row + 1}"
+            sym_id = f"{sym_id}#{self.start_row(span) + 1}"
         else:
             self._ids[sym_id] = 1
         sym = Symbol(
@@ -124,9 +143,9 @@ class Builder:
             kind=kind,
             lang=self.lang,
             path=self.path,
-            line=node.start_point.row + 1,
-            end_line=span.end_point.row + 1,
-            body_start=span.start_point.row + 1,
+            line=self.start_row(node) + 1,
+            end_line=self.end_row(span) + 1,
+            body_start=self.start_row(span) + 1,
             parent=scope.prefix or None,
             signature=signature,
             doc=doc,
@@ -143,12 +162,11 @@ class Builder:
     ) -> None:
         if not name:
             return
-        row = node.start_point.row
-        col = self.char_col(row, node.start_point.column)
-        end_row = node.end_point.row
-        if end_row != row:
+        row = self.start_row(node)
+        if self.end_row(node) != row:
             return
-        end_col = self.char_col(row, node.end_point.column)
+        col = self.char_col(row, node.start_byte - self._line_starts[row])
+        end_col = self.char_col(row, node.end_byte - self._line_starts[row])
         self.index.refs.append(
             Ref(
                 owner=owner,
@@ -182,6 +200,11 @@ def walk(root: Node, scope: Scope, handler: NodeHandler) -> None:
 
 
 UNKNOWN_RECEIVER = "?"
+
+
+def same(a: Node | None, b: Node | None) -> bool:
+    """Node identity. Tree-sitter hands out a fresh wrapper per access, so ``is`` never works."""
+    return a is not None and b is not None and a.id == b.id
 
 
 def simple_receiver(text: str) -> str:
