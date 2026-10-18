@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import re
 from bisect import bisect_left, bisect_right
 from datetime import UTC, datetime
 from importlib import resources
 
 from . import __version__
 from .graph import Graph
-from .model import REF_CALL, REF_TYPE, REF_VALUE, Ref, Symbol
+from .model import REF_CALL, REF_TYPE, REF_VALUE, Ref
 
 DEFAULT_MAX_BODY_LINES = 400
 KIND_CODES = {REF_CALL: "c", REF_VALUE: "r", REF_TYPE: "t"}
@@ -140,21 +141,22 @@ def _edge_list(edges, outgoing: bool) -> list[list[object]]:
 
 def render_html(graph: Graph, max_body_lines: int = DEFAULT_MAX_BODY_LINES) -> str:
     payload = build_payload(graph, max_body_lines)
+    # Every "<" becomes a JSON unicode escape so source code containing "</script>"
+    # or "<!--" cannot terminate or confuse the embedding <script> element.
     data = json.dumps(payload, separators=(",", ":"), ensure_ascii=True)
-    data = data.replace("</", "<\\/").replace("<!--", "<\\!--")
-    page = _asset("viewer.html")
-    title = f"callscape: {payload['meta']['name']}"
-    page = page.replace("__TITLE__", _escape(title))
-    page = page.replace("/*__CSS__*/", _asset("viewer.css"))
-    page = page.replace("/*__JS__*/", _asset("viewer.js"))
-    return page.replace("__DATA__", data)
+    data = data.replace("<", "\\u003c")
+    parts = {
+        "__TITLE__": _escape(f"callscape: {payload['meta']['name']}"),
+        "/*__CSS__*/": _asset("viewer.css"),
+        "/*__JS__*/": _asset("viewer.js"),
+        "__DATA__": data,
+    }
+    # One pass, so markers that appear inside the substituted text are left alone.
+    pattern = re.compile("|".join(re.escape(k) for k in parts))
+    return pattern.sub(lambda m: parts[m.group(0)], _asset("viewer.html"))
 
 
 def _escape(text: str) -> str:
     return (
         text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
     )
-
-
-def describe(sym: Symbol) -> str:
-    return f"{sym.qualname} ({sym.kind}, {sym.path}:{sym.line})"
