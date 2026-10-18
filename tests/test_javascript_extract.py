@@ -121,18 +121,15 @@ def test_column_offsets_point_at_the_identifier() -> None:
     assert index.lines[ref.line - 1][ref.col : ref.end_col] == "later"
 
 
-def test_large_real_world_style_template_literals_do_not_break_parsing() -> None:
-    src = (
-        b"export async function q() {
-"
-        b"  const data = await evaluate(`
-    (function(){ return ${X}; })()
-  `);
-"
-        b"  return data;
-}
-"
-    )
-    index = extract("t.js", src)
+def test_template_literals_with_substitutions_do_not_break_parsing() -> None:
+    lines = [
+        "export async function q() {",
+        "  const data = await evaluate(`",
+        "    (function(){ return ${X}; })()",
+        "  `);",
+        "  return data;",
+        "}",
+    ]
+    index = extract("t.js", "\n".join(lines).encode())
     assert [s.qualname for s in index.symbols] == ["q"]
     assert any(r.name == "evaluate" for r in index.refs)
