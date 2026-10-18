@@ -49,7 +49,7 @@ class Builder:
             self._line_starts.append(offset)
             offset += len(chunk) + 1
         text = data.decode("utf-8", errors="replace")
-        self.lines = text.split("\n")
+        self.lines = [line.rstrip("\r") for line in text.split("\n")]
         self.index = FileIndex(path=path, lang=lang, lines=self.lines)
         self._ids: dict[str, int] = {}
         self.module_id = f"{path}::<module>"
