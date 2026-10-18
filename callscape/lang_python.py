@@ -87,7 +87,7 @@ class _PythonHandler:
             cls=scope.cls,
             self_names=("self", "cls", "mcs"),
         )
-        return [(c, inner) for c in node.children if c is not name_node]
+        return [(c, inner) for c in node.children if c != name_node]
 
     def klass(self, node: Node, scope: Scope) -> Pushed:
         b = self.b
@@ -153,7 +153,7 @@ class _PythonHandler:
                     self.attribute_ref(value, scope.owner, REF_VALUE)
         pushed: list[tuple[Node, Scope]] = []
         for child in node.children:
-            if child is fn and fn.type in ("identifier", "attribute"):
+            if child == fn and fn.type in ("identifier", "attribute"):
                 if fn.type == "attribute":
                     obj = fn.child_by_field_name("object")
                     if obj is not None:
