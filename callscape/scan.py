@@ -60,6 +60,7 @@ class ScanResult:
     root: Path
     files: list[SourceFile] = field(default_factory=list)
     skipped: list[tuple[str, str]] = field(default_factory=list)
+    go_mod_dirs: list[str] = field(default_factory=list)  # dirs holding a go.mod, "" for root
 
 
 def parse_languages(spec: str | Iterable[str] | None) -> frozenset[str]:
@@ -130,6 +131,9 @@ def scan(
         return result
 
     for rel, abspath in _walk(root, patterns):
+        if abspath.name == "go.mod" and "go" in wanted:
+            result.go_mod_dirs.append(rel.rpartition("/")[0])
+            continue
         lang = LANGUAGE_EXTENSIONS.get(abspath.suffix.lower())
         if lang is None or lang not in wanted:
             continue
